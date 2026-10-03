@@ -20,7 +20,7 @@ The project extracts Pokémon, species, and move data, stores the raw responses 
 - **Data validation** — checking data quality and relationships
 
 ## Architecture
-
+See the architecture here: [![Architecture diagram](https://gitdiagram.com/diagram-badge.svg)](https://gitdiagram.com/likhitasingireddyvaluecreed/pokemon-etl-pipeline?utm_source=readme&utm_medium=badge)
 ```text
 PokéAPI
    ↓
