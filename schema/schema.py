@@ -5,7 +5,9 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
-# project paths
+# --------------------------------------------------
+# Project paths
+# --------------------------------------------------
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -14,13 +16,13 @@ SCHEMA_FILE = BASE_DIR / "schema.txt"
 SQL_SCHEMA_FILE = BASE_DIR / "schema.sql"
 
 
-# generate schema
+# --------------------------------------------------
+# Generate schema
+# --------------------------------------------------
 
 def generate_schema():
 
-    connection = sqlite3.connect(
-        DATABASE_FILE
-    )
+    connection = sqlite3.connect(DATABASE_FILE)
 
     try:
 
@@ -29,13 +31,19 @@ def generate_schema():
             DATABASE_FILE
         )
 
-        # get all tables
+        # Enable foreign-key information
+        connection.execute("PRAGMA foreign_keys = ON")
+
+        # --------------------------------------------------
+        # Get tables
+        # --------------------------------------------------
 
         tables = connection.execute(
             """
             SELECT name
             FROM sqlite_master
             WHERE type = 'table'
+              AND name NOT LIKE 'sqlite_%'
             ORDER BY name
             """
         ).fetchall()
@@ -43,9 +51,7 @@ def generate_schema():
         print("\nAVAILABLE TABLES:")
 
         for table in tables:
-
-            print(table)
-
+            print(table[0])
 
         if not tables:
 
@@ -55,63 +61,46 @@ def generate_schema():
 
             return
 
-
-        # output storage
-
         schema_output = []
         sql_output = []
 
-
-        # process each table
+        # --------------------------------------------------
+        # Process every table
+        # --------------------------------------------------
 
         for table in tables:
 
             table_name = table[0]
 
-
-            # get table columns
+            # ----------------------------------------------
+            # Table information
+            # ----------------------------------------------
 
             columns = connection.execute(
-                f"""
-                PRAGMA table_info("{table_name}")
-                """
+                f'PRAGMA table_info("{table_name}")'
             ).fetchall()
-
-
-            # get foreign keys
 
             foreign_keys = connection.execute(
-                f"""
-                PRAGMA foreign_key_list("{table_name}")
-                """
+                f'PRAGMA foreign_key_list("{table_name}")'
             ).fetchall()
 
+            # ----------------------------------------------
+            # Text schema
+            # ----------------------------------------------
 
-            # text schema
-
-            schema_output.append(
-                "\n" + "=" * 70
-            )
-
-            schema_output.append(
-                f"TABLE: {table_name}"
-            )
-
-            schema_output.append(
-                "=" * 70
-            )
+            schema_output.append("")
+            schema_output.append("=" * 80)
+            schema_output.append(f"TABLE: {table_name}")
+            schema_output.append("=" * 80)
 
             schema_output.append(
                 f"{'COLUMN':<30}"
                 f"{'TYPE':<20}"
-                f"{'NULLABLE':<10}"
+                f"{'NULLABLE':<12}"
                 f"{'PRIMARY KEY'}"
             )
 
-            schema_output.append(
-                "-" * 70
-            )
-
+            schema_output.append("-" * 80)
 
             for column in columns:
 
@@ -129,20 +118,19 @@ def generate_schema():
                 schema_output.append(
                     f"{column_name:<30}"
                     f"{data_type:<20}"
-                    f"{nullable:<10}"
-                    f"{primary_key}"
+                    f"{nullable:<12}"
+                    f"{'YES' if primary_key else 'NO'}"
                 )
 
-
-            # foreign key information
+            # ----------------------------------------------
+            # Foreign keys
+            # ----------------------------------------------
 
             if foreign_keys:
 
                 schema_output.append("")
-
-                schema_output.append(
-                    "FOREIGN KEYS:"
-                )
+                schema_output.append("FOREIGN KEYS:")
+                schema_output.append("-" * 40)
 
                 for foreign_key in foreign_keys:
 
@@ -156,19 +144,19 @@ def generate_schema():
                         f"{referenced_column}"
                     )
 
-
-            # sql schema
+            # ----------------------------------------------
+            # CREATE TABLE statement
+            # ----------------------------------------------
 
             create_statement = connection.execute(
                 """
                 SELECT sql
                 FROM sqlite_master
                 WHERE type = 'table'
-                AND name = ?
+                  AND name = ?
                 """,
                 (table_name,)
             ).fetchone()
-
 
             if create_statement:
 
@@ -178,29 +166,18 @@ def generate_schema():
 
                 sql_output.append("")
 
+        # --------------------------------------------------
+        # Create output
+        # --------------------------------------------------
 
-        # create text content
+        schema_text = "\n".join(schema_output)
+        schema_sql = "\n".join(sql_output)
 
-        schema_text = "\n".join(
-            schema_output
-        )
+        print("\n" + schema_text)
 
-
-        # create sql content
-
-        schema_sql = "\n".join(
-            sql_output
-        )
-
-
-        # print schema
-
-        print(
-            "\n" + schema_text
-        )
-
-
-        # save schema.txt
+        # --------------------------------------------------
+        # Save schema.txt
+        # --------------------------------------------------
 
         with open(
             SCHEMA_FILE,
@@ -208,12 +185,11 @@ def generate_schema():
             encoding="utf-8"
         ) as file:
 
-            file.write(
-                schema_text
-            )
+            file.write(schema_text)
 
-
-        # save schema.sql
+        # --------------------------------------------------
+        # Save schema.sql
+        # --------------------------------------------------
 
         with open(
             SQL_SCHEMA_FILE,
@@ -221,12 +197,7 @@ def generate_schema():
             encoding="utf-8"
         ) as file:
 
-            file.write(
-                schema_sql
-            )
-
-
-        # log success
+            file.write(schema_sql)
 
         logger.info(
             "Schema text saved successfully | file=%s",
@@ -238,6 +209,14 @@ def generate_schema():
             SQL_SCHEMA_FILE
         )
 
+    except Exception as e:
+
+        logger.exception(
+            "Schema generation failed | error=%s",
+            e
+        )
+
+        raise
 
     finally:
 
@@ -248,7 +227,9 @@ def generate_schema():
         )
 
 
-# main
+# --------------------------------------------------
+# Main
+# --------------------------------------------------
 
 if __name__ == "__main__":
 

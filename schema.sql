@@ -23,7 +23,13 @@ CREATE TABLE pokemon (
 
             pokemon_id INTEGER PRIMARY KEY,
 
+            species_id INTEGER NOT NULL,
+
             name TEXT NOT NULL,
+
+            form_name TEXT,
+
+            is_default_form INTEGER,
 
             height_m REAL CHECK (
                 height_m >= 0
@@ -76,7 +82,10 @@ CREATE TABLE pokemon (
 
             stat_specialization TEXT,
 
-            size_class TEXT
+            size_class TEXT,
+
+            FOREIGN KEY (species_id)
+            REFERENCES pokemon_species(species_id)
         );
 
 CREATE TABLE pokemon_abilities (
@@ -132,7 +141,7 @@ CREATE TABLE pokemon_moves (
 
 CREATE TABLE pokemon_species (
 
-            pokemon_id INTEGER PRIMARY KEY,
+            species_id INTEGER PRIMARY KEY,
 
             pokemon_category TEXT,
 
@@ -173,10 +182,7 @@ CREATE TABLE pokemon_species (
 
             is_mythical INTEGER,
 
-            special_status TEXT,
-
-            FOREIGN KEY (pokemon_id)
-                REFERENCES pokemon(pokemon_id)
+            special_status TEXT
         );
 
 CREATE TABLE pokemon_types (

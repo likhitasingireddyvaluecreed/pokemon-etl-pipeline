@@ -200,20 +200,20 @@ def retrieve_data():
             output.append(str(record))
 
 
-        # query 6
+       # query 6
         # show pokemon species data
 
         cursor.execute(
             """
             SELECT
-                pokemon_id,
+                species_id,
                 pokemon_category,
                 generation,
                 color,
                 shape,
                 habitat,
                 special_status
-            FROM pokemon_species
+            FROM pokemon_species LIMIT 10
             """
         )
 
@@ -229,6 +229,7 @@ def retrieve_data():
 
             print(record)
             output.append(str(record))
+
 
 
         # save retrieval output to txt file

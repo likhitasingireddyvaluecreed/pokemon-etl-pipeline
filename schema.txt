@@ -1,105 +1,112 @@
 
-======================================================================
+================================================================================
 TABLE: moves
-======================================================================
-COLUMN                        TYPE                NULLABLE  PRIMARY KEY
-----------------------------------------------------------------------
-move_id                       INTEGER             YES       1
-move_name                     TEXT                NO        0
-move_type                     TEXT                YES       0
-power                         INTEGER             YES       0
-accuracy                      INTEGER             YES       0
-pp                            INTEGER             YES       0
-priority                      INTEGER             YES       0
-damage_class                  TEXT                YES       0
-generation                    TEXT                YES       0
+================================================================================
+COLUMN                        TYPE                NULLABLE    PRIMARY KEY
+--------------------------------------------------------------------------------
+move_id                       INTEGER             YES         YES
+move_name                     TEXT                NO          NO
+move_type                     TEXT                YES         NO
+power                         INTEGER             YES         NO
+accuracy                      INTEGER             YES         NO
+pp                            INTEGER             YES         NO
+priority                      INTEGER             YES         NO
+damage_class                  TEXT                YES         NO
+generation                    TEXT                YES         NO
 
-======================================================================
+================================================================================
 TABLE: pokemon
-======================================================================
-COLUMN                        TYPE                NULLABLE  PRIMARY KEY
-----------------------------------------------------------------------
-pokemon_id                    INTEGER             YES       1
-name                          TEXT                NO        0
-height_m                      REAL                YES       0
-weight_kg                     REAL                YES       0
-base_experience               INTEGER             YES       0
-hp                            INTEGER             YES       0
-attack                        INTEGER             YES       0
-defense                       INTEGER             YES       0
-special_attack                INTEGER             YES       0
-special_defense               INTEGER             YES       0
-speed                         INTEGER             YES       0
-total_base_stats              INTEGER             YES       0
-offensive_power               INTEGER             YES       0
-defensive_power               INTEGER             YES       0
-speed_percentile              REAL                YES       0
-battle_style                  TEXT                YES       0
-stat_specialization           TEXT                YES       0
-size_class                    TEXT                YES       0
-
-======================================================================
-TABLE: pokemon_abilities
-======================================================================
-COLUMN                        TYPE                NULLABLE  PRIMARY KEY
-----------------------------------------------------------------------
-pokemon_id                    INTEGER             NO        1
-ability_name                  TEXT                NO        0
-slot                          INTEGER             NO        2
-is_hidden                     INTEGER             NO        0
+================================================================================
+COLUMN                        TYPE                NULLABLE    PRIMARY KEY
+--------------------------------------------------------------------------------
+pokemon_id                    INTEGER             YES         YES
+species_id                    INTEGER             NO          NO
+name                          TEXT                NO          NO
+form_name                     TEXT                YES         NO
+is_default_form               INTEGER             YES         NO
+height_m                      REAL                YES         NO
+weight_kg                     REAL                YES         NO
+base_experience               INTEGER             YES         NO
+hp                            INTEGER             YES         NO
+attack                        INTEGER             YES         NO
+defense                       INTEGER             YES         NO
+special_attack                INTEGER             YES         NO
+special_defense               INTEGER             YES         NO
+speed                         INTEGER             YES         NO
+total_base_stats              INTEGER             YES         NO
+offensive_power               INTEGER             YES         NO
+defensive_power               INTEGER             YES         NO
+speed_percentile              REAL                YES         NO
+battle_style                  TEXT                YES         NO
+stat_specialization           TEXT                YES         NO
+size_class                    TEXT                YES         NO
 
 FOREIGN KEYS:
+----------------------------------------
+species_id -> pokemon_species.species_id
+
+================================================================================
+TABLE: pokemon_abilities
+================================================================================
+COLUMN                        TYPE                NULLABLE    PRIMARY KEY
+--------------------------------------------------------------------------------
+pokemon_id                    INTEGER             NO          YES
+ability_name                  TEXT                NO          NO
+slot                          INTEGER             NO          YES
+is_hidden                     INTEGER             NO          NO
+
+FOREIGN KEYS:
+----------------------------------------
 pokemon_id -> pokemon.pokemon_id
 
-======================================================================
+================================================================================
 TABLE: pokemon_moves
-======================================================================
-COLUMN                        TYPE                NULLABLE  PRIMARY KEY
-----------------------------------------------------------------------
-pokemon_id                    INTEGER             NO        1
-move_id                       INTEGER             NO        2
-learn_method                  TEXT                NO        3
-level_learned_at              INTEGER             NO        4
-version_group                 TEXT                NO        5
+================================================================================
+COLUMN                        TYPE                NULLABLE    PRIMARY KEY
+--------------------------------------------------------------------------------
+pokemon_id                    INTEGER             NO          YES
+move_id                       INTEGER             NO          YES
+learn_method                  TEXT                NO          YES
+level_learned_at              INTEGER             NO          YES
+version_group                 TEXT                NO          YES
 
 FOREIGN KEYS:
+----------------------------------------
 move_id -> moves.move_id
 pokemon_id -> pokemon.pokemon_id
 
-======================================================================
+================================================================================
 TABLE: pokemon_species
-======================================================================
-COLUMN                        TYPE                NULLABLE  PRIMARY KEY
-----------------------------------------------------------------------
-pokemon_id                    INTEGER             YES       1
-pokemon_category              TEXT                YES       0
-generation                    TEXT                YES       0
-color                         TEXT                YES       0
-shape                         TEXT                YES       0
-habitat                       TEXT                YES       0
-capture_rate                  INTEGER             YES       0
-base_happiness                INTEGER             YES       0
-growth_rate                   TEXT                YES       0
-gender_rate                   INTEGER             YES       0
-hatch_counter                 INTEGER             YES       0
-egg_group_1                   TEXT                YES       0
-egg_group_2                   TEXT                YES       0
-is_baby                       INTEGER             YES       0
-is_legendary                  INTEGER             YES       0
-is_mythical                   INTEGER             YES       0
-special_status                TEXT                YES       0
+================================================================================
+COLUMN                        TYPE                NULLABLE    PRIMARY KEY
+--------------------------------------------------------------------------------
+species_id                    INTEGER             YES         YES
+pokemon_category              TEXT                YES         NO
+generation                    TEXT                YES         NO
+color                         TEXT                YES         NO
+shape                         TEXT                YES         NO
+habitat                       TEXT                YES         NO
+capture_rate                  INTEGER             YES         NO
+base_happiness                INTEGER             YES         NO
+growth_rate                   TEXT                YES         NO
+gender_rate                   INTEGER             YES         NO
+hatch_counter                 INTEGER             YES         NO
+egg_group_1                   TEXT                YES         NO
+egg_group_2                   TEXT                YES         NO
+is_baby                       INTEGER             YES         NO
+is_legendary                  INTEGER             YES         NO
+is_mythical                   INTEGER             YES         NO
+special_status                TEXT                YES         NO
 
-FOREIGN KEYS:
-pokemon_id -> pokemon.pokemon_id
-
-======================================================================
+================================================================================
 TABLE: pokemon_types
-======================================================================
-COLUMN                        TYPE                NULLABLE  PRIMARY KEY
-----------------------------------------------------------------------
-pokemon_id                    INTEGER             NO        1
-type_name                     TEXT                NO        0
-slot                          INTEGER             NO        2
+================================================================================
+COLUMN                        TYPE                NULLABLE    PRIMARY KEY
+--------------------------------------------------------------------------------
+pokemon_id                    INTEGER             NO          YES
+type_name                     TEXT                NO          NO
+slot                          INTEGER             NO          YES
 
 FOREIGN KEYS:
+----------------------------------------
 pokemon_id -> pokemon.pokemon_id
