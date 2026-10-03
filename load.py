@@ -53,7 +53,13 @@ def create_tables(conn):
 
             pokemon_id INTEGER PRIMARY KEY,
 
+            species_id INTEGER NOT NULL,
+
             name TEXT NOT NULL,
+
+            form_name TEXT,
+
+            is_default_form INTEGER,
 
             height_m REAL CHECK (
                 height_m >= 0
@@ -106,7 +112,10 @@ def create_tables(conn):
 
             stat_specialization TEXT,
 
-            size_class TEXT
+            size_class TEXT,
+
+            FOREIGN KEY (species_id)
+            REFERENCES pokemon_species(species_id)
         )
         """
     )
@@ -117,7 +126,7 @@ def create_tables(conn):
         """
         CREATE TABLE IF NOT EXISTS pokemon_species (
 
-            pokemon_id INTEGER PRIMARY KEY,
+            species_id INTEGER PRIMARY KEY,
 
             pokemon_category TEXT,
 
@@ -158,10 +167,7 @@ def create_tables(conn):
 
             is_mythical INTEGER,
 
-            special_status TEXT,
-
-            FOREIGN KEY (pokemon_id)
-                REFERENCES pokemon(pokemon_id)
+            special_status TEXT
         )
         """
     )
@@ -329,123 +335,12 @@ def _prepare_rows(df, columns):
     return rows
 
 
-# load pokemon data
-
-def _load_pokemon(cursor, df):
-
-    columns = [
-        "pokemon_id",
-        "pokemon_name",
-        "height_m",
-        "weight_kg",
-        "base_experience",
-        "hp",
-        "attack",
-        "defense",
-        "special_attack",
-        "special_defense",
-        "speed",
-        "total_base_stats",
-        "offensive_power",
-        "defensive_power",
-        "speed_percentile",
-        "battle_style",
-        "stat_specialization",
-        "size_class"
-    ]
-
-    rows = _prepare_rows(
-        df,
-        columns
-    )
-
-    cursor.executemany(
-        """
-        INSERT INTO pokemon (
-
-            pokemon_id,
-            name,
-            height_m,
-            weight_kg,
-            base_experience,
-            hp,
-            attack,
-            defense,
-            special_attack,
-            special_defense,
-            speed,
-            total_base_stats,
-            offensive_power,
-            defensive_power,
-            speed_percentile,
-            battle_style,
-            stat_specialization,
-            size_class
-
-        )
-
-        VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?, ?, ?
-        )
-
-        ON CONFLICT(pokemon_id)
-        DO UPDATE SET
-
-            name = excluded.name,
-
-            height_m = excluded.height_m,
-
-            weight_kg = excluded.weight_kg,
-
-            base_experience =
-                excluded.base_experience,
-
-            hp = excluded.hp,
-
-            attack = excluded.attack,
-
-            defense = excluded.defense,
-
-            special_attack =
-                excluded.special_attack,
-
-            special_defense =
-                excluded.special_defense,
-
-            speed = excluded.speed,
-
-            total_base_stats =
-                excluded.total_base_stats,
-
-            offensive_power =
-                excluded.offensive_power,
-
-            defensive_power =
-                excluded.defensive_power,
-
-            speed_percentile =
-                excluded.speed_percentile,
-
-            battle_style =
-                excluded.battle_style,
-
-            stat_specialization =
-                excluded.stat_specialization,
-
-            size_class =
-                excluded.size_class
-        """,
-        rows
-    )
-
-
 # load species data
 
 def _load_species(cursor, df):
 
     columns = [
-        "pokemon_id",
+        "species_id",
         "pokemon_category",
         "generation",
         "color",
@@ -473,7 +368,7 @@ def _load_species(cursor, df):
         """
         INSERT INTO pokemon_species (
 
-            pokemon_id,
+            species_id,
             pokemon_category,
             generation,
             color,
@@ -498,7 +393,7 @@ def _load_species(cursor, df):
             ?, ?, ?, ?, ?, ?, ?
         )
 
-        ON CONFLICT(pokemon_id)
+        ON CONFLICT(species_id)
         DO UPDATE SET
 
             pokemon_category =
@@ -551,6 +446,127 @@ def _load_species(cursor, df):
         """,
         rows
     )
+
+
+# load pokemon data
+
+def _load_pokemon(cursor, df):
+
+    columns = [
+        "pokemon_id",
+        "species_id",
+        "pokemon_name",
+        "form_name",
+        "is_default_form",
+        "height_m",
+        "weight_kg",
+        "base_experience",
+        "hp",
+        "attack",
+        "defense",
+        "special_attack",
+        "special_defense",
+        "speed",
+        "total_base_stats",
+        "offensive_power",
+        "defensive_power",
+        "speed_percentile",
+        "battle_style",
+        "stat_specialization",
+        "size_class"
+    ]
+
+    rows = _prepare_rows(
+        df,
+        columns
+    )
+
+    cursor.executemany(
+        """
+        INSERT INTO pokemon (
+
+            pokemon_id,
+            species_id,
+            name,
+            form_name,
+            is_default_form,
+            height_m,
+            weight_kg,
+            base_experience,
+            hp,
+            attack,
+            defense,
+            special_attack,
+            special_defense,
+            speed,
+            total_base_stats,
+            offensive_power,
+            defensive_power,
+            speed_percentile,
+            battle_style,
+            stat_specialization,
+            size_class
+
+        )
+
+        VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        )
+
+        ON CONFLICT(pokemon_id)
+        DO UPDATE SET
+
+            species_id = excluded.species_id,
+
+            name = excluded.name,
+
+            form_name = excluded.form_name,
+
+            is_default_form =excluded.is_default_form,
+
+            height_m = excluded.height_m,
+
+            weight_kg = excluded.weight_kg,
+
+            base_experience = excluded.base_experience,
+
+            hp = excluded.hp,
+
+            attack = excluded.attack,
+
+            defense = excluded.defense,
+
+            special_attack = excluded.special_attack,
+
+            special_defense = excluded.special_defense,
+
+            speed = excluded.speed,
+
+            total_base_stats =
+                excluded.total_base_stats,
+
+            offensive_power =
+                excluded.offensive_power,
+
+            defensive_power =
+                excluded.defensive_power,
+
+            speed_percentile =
+                excluded.speed_percentile,
+
+            battle_style =
+                excluded.battle_style,
+
+            stat_specialization =
+                excluded.stat_specialization,
+
+            size_class =
+                excluded.size_class
+        """,
+        rows
+    )
+
 
 
 # load pokemon type relationship
@@ -816,19 +832,21 @@ def load_data_to_database(
             "Starting database loading transaction"
         )
 
-        # load pokemon first because other tables depend on it
+        # load species data first because main pokemon table depend on it
+        
+        _load_species(
+            cursor,
+            species_df
+        )
+        
+        # load pokemon 
 
         _load_pokemon(
             cursor,
             pokemon_df
         )
 
-        # load species data
-
-        _load_species(
-            cursor,
-            species_df
-        )
+        
 
         # load type relationship
 

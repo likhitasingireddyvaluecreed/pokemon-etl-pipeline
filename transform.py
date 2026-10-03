@@ -5,7 +5,20 @@ from config import NUMERIC_COLUMNS, STAT_COLUMNS , CATEGORICAL_COLUMNS , DEFAULT
 STAT_COLUMNS = STAT_COLUMNS 
 
 
+def get_id_from_url(data):
 
+    url = data.get("url")
+
+    if not url:
+        return None
+
+    try:
+        return int(
+            url.rstrip("/")
+            .split("/")[-1]
+        )
+    except (ValueError, TypeError):
+        return None
 
 def transform_pokemon(pokemon):
 
@@ -14,10 +27,24 @@ def transform_pokemon(pokemon):
     and assign values to the stats
     """
 
+    species_info = pokemon.get("species") or {}
+
     record = {
         "pokemon_id": pokemon.get("id"),
 
+        "species_id": get_id_from_url(
+            species_info
+        ),
+
         "pokemon_name": pokemon.get("name"),
+
+        "form_name": (
+            (pokemon.get("forms") or [{}])[0]
+            .get("name")
+        ),
+
+        "is_default_form":
+            pokemon.get("is_default", True),
 
         "height_m": (
             pokemon.get("height", 0) / 10
@@ -29,7 +56,7 @@ def transform_pokemon(pokemon):
 
         "base_experience":
             pokemon.get("base_experience")
-    }
+        }
 
     # creating all the stat columns initially
     for stat in STAT_COLUMNS:
@@ -204,7 +231,7 @@ def transform_species(species_data):
 
         record = {
 
-            "pokemon_id":
+            "species_id":
                 species.get("id"),
 
             # get pokemon category/genus
@@ -341,7 +368,10 @@ def convert_data_types(df):
         df[column] = pd.to_numeric(
             df[column],
             errors="coerce"
-        )
+        ).fillna(0)
+
+        # Replace any negative value with 0
+        df[column] = df[column].clip(lower=0)
 
     return df
 

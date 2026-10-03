@@ -16,11 +16,9 @@ from transform import (
     transform_pokemon_moves
 )
 
-from validation import (
-    validate_dataframe,
-    validate_unique_key,
-    validate_non_negative
-)
+from validation import validate_all
+
+
 from config import RAW_DIR
 
 logger = logging.getLogger(__name__)
@@ -193,80 +191,21 @@ def run_transformation(logger):
         len(pokemon_moves_df.columns)
     )
 
-# ================================ VALIDATION =======================================================
+    # ================================ VALIDATION =======================================================
 
-    logger.info(
-        "Starting validation layer"
-    )
+    logger.info("Starting validation layer")
 
-    #pokemon dataset validation
-
-    validate_dataframe(
+    validate_all(
         pokemon_df,
-        [
-            "pokemon_id",
-            "pokemon_name",
-            "height_m",
-            "weight_kg",
-            "base_experience"
-        ],
-        "pokemon",
-        logger
+        types_df,
+        abilities_df,
+        species_df
     )
 
-    validate_unique_key(
-        pokemon_df,
-        "pokemon_id",
-        "pokemon",
-        logger
-    )
-
-    validate_non_negative(
-        pokemon_df,
-        [
-            "pokemon_id",
-            "height_m",
-            "weight_kg",
-            "base_experience",
-            "hp",
-            "attack",
-            "defense",
-            "special_attack",
-            "special_defense",
-            "speed"
-        ],
-        "pokemon",
-        logger
-    )
-
-    # Species dataset validation
+    logger.info("All validations passed")
 
 
-    validate_dataframe(
-        species_df,
-        [
-            "pokemon_id",
-            "pokemon_category",
-            "generation"
-        ],
-        "pokemon_species",
-        logger
-    )
-
-    validate_unique_key(
-        species_df,
-        "pokemon_id",
-        "pokemon_species",
-        logger
-    )
-
-    logger.info(
-        "All validations passed"
-    )
-
-
-    # RETURN TRANSFORMED DATA
-
+    # ================================ RETURN TRANSFORMED DATA ==========================================
 
     return (
         pokemon_df,

@@ -5,166 +5,26 @@ Validation ensures that data is structurally and logically valid
 before it becomes part of the processed layer.
 """
 
-import pandas as pd
-from exceptions import ValidationError
 from config import (
     ALLOWED_BATTLE_STYLES,
     ALLOWED_SPECIAL_STATUSES,
     SPEED_PERCENTILE_MAX,
     SPEED_PERCENTILE_MIN,
     VALIDATION_NUMERIC_COLUMNS,
-    VALIDATION_REQUIRED_COLUMNS,
+    POKEMON_REQUIRED_COLS,
+    SPECIES_REQUIRED_COLS,
+    SPECIES_NON_NEGATIVE_COLS,
 )
 
-# Generic validation
-def validate_dataframe(
+
+def validate_required_columns(
     df,
-    required_columns,
-    dataset_name,
-    logger
+    required_columns
 ):
-    """
-    Validate basic structural requirements.
-
-    Raises:
-        ValidationError: If validation fails.
-    """
-
-    if df.empty:
-
-        logger.error(
-            "Validation failed | dataset=%s | reason=empty dataset",
-            dataset_name
-        )
-
-        raise ValidationError(
-            f"{dataset_name} dataset is empty"
-        )
 
     missing_columns = [
         column
         for column in required_columns
-        if column not in df.columns
-    ]
-
-    if missing_columns:
-
-        logger.error(
-            "Validation failed | dataset=%s | missing_columns=%s",
-            dataset_name,
-            missing_columns
-        )
-
-        raise ValidationError(
-            f"{dataset_name} is missing columns: {missing_columns}"
-        )
-
-    logger.info(
-        "Validation passed | dataset=%s | records=%s",
-        dataset_name,
-        len(df)
-    )
-
-    return True
-def validate_unique_key(
-    df,
-    key_column,
-    dataset_name,
-    logger
-):
-    """
-    Validate that a business key is unique.
-
-    Raises:
-        ValidationError: If duplicate keys are found.
-    """
-
-    if key_column not in df.columns:
-
-        raise ValidationError(
-            f"{dataset_name} does not contain key: {key_column}"
-        )
-
-    duplicate_count = (
-        df[key_column]
-        .duplicated()
-        .sum()
-    )
-
-    if duplicate_count > 0:
-
-        logger.error(
-            "Validation failed | dataset=%s | duplicate_%s=%s",
-            dataset_name,
-            key_column,
-            duplicate_count
-        )
-
-        raise ValidationError(
-            f"{dataset_name} contains "
-            f"{duplicate_count} duplicate {key_column} values"
-        )
-
-    logger.info(
-        "Unique key validation passed | dataset=%s | key=%s",
-        dataset_name,
-        key_column
-    )
-
-    return True
-
-def validate_non_negative(
-    df,
-    columns,
-    dataset_name,
-    logger
-):
-    """
-    Ensure numeric columns do not contain negative values.
-    """
-
-    for column in columns:
-
-        if column not in df.columns:
-            continue
-
-        invalid_count = (
-            df[column]
-            .dropna()
-            .lt(0)
-            .sum()
-        )
-
-        if invalid_count > 0:
-
-            logger.error(
-                "Validation failed | dataset=%s | "
-                "column=%s | negative_values=%s",
-                dataset_name,
-                column,
-                invalid_count
-            )
-
-            raise ValidationError(
-                f"{dataset_name}.{column} "
-                f"contains negative values"
-            )
-
-    logger.info(
-        "Non-negative validation passed | dataset=%s",
-        dataset_name
-    )
-
-    return True
-
-REQUIRED_COLUMNS = VALIDATION_REQUIRED_COLUMNS
-
-
-def validate_required_columns(df):
-
-    missing_columns = [
-        column
-        for column in REQUIRED_COLUMNS
         if column not in df.columns
     ]
 
@@ -203,6 +63,50 @@ def validate_pokemon_ids(df):
         )
 
 
+def validate_species_ids(df):
+
+    if df["species_id"].isna().any():
+
+        raise ValueError(
+            "Missing Species IDs"
+        )
+
+    if (
+        df["species_id"] <= 0
+    ).any():
+
+        raise ValueError(
+            "Invalid Species ID found"
+        )
+
+    if (
+        df["species_id"]
+        .duplicated()
+        .any()
+    ):
+
+        raise ValueError(
+            "Duplicate Species IDs found"
+        )
+
+
+def validate_pokemon_species_ids(df):
+
+    if df["species_id"].isna().any():
+
+        raise ValueError(
+            "Missing Species IDs in Pokémon table"
+        )
+
+    if (
+        df["species_id"] <= 0
+    ).any():
+
+        raise ValueError(
+            "Invalid Species ID found in Pokémon table"
+        )
+
+
 def validate_pokemon_names(df):
 
     if df["pokemon_name"].isna().any():
@@ -226,6 +130,22 @@ def validate_pokemon_names(df):
 def validate_numeric_values(df):
 
     columns = VALIDATION_NUMERIC_COLUMNS
+
+    for column in columns:
+
+        values = df[column].dropna()
+
+        if (values < 0).any():
+
+            raise ValueError(
+                f"Negative value found "
+                f"in {column}"
+            )
+
+
+def validate_species_numeric_values(df):
+
+    columns = SPECIES_NON_NEGATIVE_COLS
 
     for column in columns:
 
@@ -317,6 +237,14 @@ def validate_foreign_keys(
         pokemon_df["pokemon_id"]
     )
 
+    species_ids = set(
+        species_df["species_id"]
+    )
+
+    pokemon_species_ids = set(
+        pokemon_df["species_id"]
+    )
+
     type_ids = set(
         types_df["pokemon_id"]
     )
@@ -325,9 +253,18 @@ def validate_foreign_keys(
         abilities_df["pokemon_id"]
     )
 
-    species_ids = set(
-        species_df["pokemon_id"]
-    )
+    # Pokémon → Species
+
+    if not pokemon_species_ids.issubset(
+        species_ids
+    ):
+
+        raise ValueError(
+            "Pokemon table contains "
+            "unknown Species IDs"
+        )
+
+    # Types → Pokémon
 
     if not type_ids.issubset(
         pokemon_ids
@@ -338,6 +275,8 @@ def validate_foreign_keys(
             "unknown Pokémon IDs"
         )
 
+    # Abilities → Pokémon
+
     if not ability_ids.issubset(
         pokemon_ids
     ):
@@ -347,27 +286,76 @@ def validate_foreign_keys(
             "unknown Pokémon IDs"
         )
 
-    if not species_ids.issubset(
-        pokemon_ids
-    ):
+
+def validate_gender_rate(df):
+
+    valid_values = set(range(-1, 9))
+
+    invalid = (
+        set(df["gender_rate"].dropna()) -
+        valid_values
+    )
+
+    if invalid:
 
         raise ValueError(
-            "Species table contains "
-            "unknown Pokémon IDs"
+            f"Invalid gender_rate values: "
+            f"{invalid}"
         )
 
 
-def validate_data(df):
+def validate_data(
+    df,
+    species_df
+):
 
     print("Running data validation...")
 
-    validate_required_columns(df)
+    # validate Pokémon structure
+
+    validate_required_columns(
+        df,
+        POKEMON_REQUIRED_COLS
+    )
+
+    # validate Species structure
+
+    validate_required_columns(
+        species_df,
+        SPECIES_REQUIRED_COLS
+    )
+
+    # validate Pokémon IDs
 
     validate_pokemon_ids(df)
 
+    # validate Species IDs
+
+    validate_species_ids(species_df)
+
+    # validate Pokémon → Species IDs
+
+    validate_pokemon_species_ids(df)
+
+    # validate Pokémon names
+
     validate_pokemon_names(df)
 
+    # validate Pokémon numeric values
+
     validate_numeric_values(df)
+
+    # validate Species numeric values
+
+    validate_species_numeric_values(
+        species_df
+    )
+
+    validate_gender_rate(
+    species_df
+    )
+
+    # validate derived Pokémon values
 
     validate_total_stats(df)
 
@@ -375,9 +363,16 @@ def validate_data(df):
 
     validate_battle_style(df)
 
-    validate_special_status(df)
+    # special status belongs to Species
 
-    print("Main Pokémon validation passed.")
+    validate_special_status(
+        species_df
+    )
+
+    print(
+        "Main Pokémon and Species "
+        "validation passed."
+    )
 
 
 def validate_all(
@@ -387,7 +382,10 @@ def validate_all(
     species_df
 ):
 
-    validate_data(pokemon_df)
+    validate_data(
+        pokemon_df,
+        species_df
+    )
 
     validate_foreign_keys(
         pokemon_df,

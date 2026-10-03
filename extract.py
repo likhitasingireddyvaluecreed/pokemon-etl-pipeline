@@ -1,35 +1,48 @@
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
+from concurrent.futures import ThreadPoolExecutor
+import threading
 import logging
-from config import BASE_URL , TIMEOUT , DEFAULT_HEADERS , RETRY_BACKOFF_FACTOR , RETRY_STATUS_FORCELIST , RETRY_RESPECT_RETRY_AFTER
 
-logging.basicConfig(level=logging.INFO)
+from config import (
+    BASE_URL,
+    TIMEOUT,
+    DEFAULT_HEADERS,
+    RETRY_BACKOFF_FACTOR,
+    RETRY_STATUS_FORCELIST,
+    RETRY_RESPECT_RETRY_AFTER
+)
+
+
 logger = logging.getLogger(__name__)
 
 
-def create_session() ->object:
+# Thread-local storage container for worker sessions
+_thread_local = threading.local()
+
+
+def create_session() -> object:
     """
-    Session creation for entire data extraction,
-    so that no need of defining settings again and again.
+    Configures and returns a requests Session instance with retry handling,
+    exponential backoff, and header defaults.
     """
 
     session = requests.Session()
 
-    # Accept JSON type of data
+    # Accept JSON response
     session.headers.update(DEFAULT_HEADERS)
 
-    # Retry engine setup for handling timeouts and server crashes automatically
     retry_strategy = Retry(
-        total=3,  # Total number of retries
-        backoff_factor=RETRY_BACKOFF_FACTOR,  # Exponential backoff (wait 2s, 4s, 8s...)
-        status_forcelist=RETRY_STATUS_FORCELIST,# Retry ONLY on these status codes
-        # raise_on_status=False,# Do not throw exception immediately on error codes
-        respect_retry_after_header=RETRY_RESPECT_RETRY_AFTER # Automatically read and wait for Retry-After headers
+        total=3,
+        backoff_factor=RETRY_BACKOFF_FACTOR,
+        status_forcelist=RETRY_STATUS_FORCELIST,
+        respect_retry_after_header=RETRY_RESPECT_RETRY_AFTER
     )
 
-    # Attach adapter settings to session object
-    adapter = HTTPAdapter(max_retries=retry_strategy)
+    adapter = HTTPAdapter(
+        max_retries=retry_strategy
+    )
 
     session.mount("https://", adapter)
     session.mount("http://", adapter)
@@ -37,246 +50,326 @@ def create_session() ->object:
     return session
 
 
-def get_json(session, url) ->dict:
+def get_worker_session():
     """
-    Implemented:
-    - timeout
-    - retry mechanism
-    - retry after when 429 status code
+    Retrieves or initializes a thread-local HTTP session to enable
+    connection pooling across tasks on the same thread.
+    """
 
-    PARAMETERS:
-    session object created for the extraction in main.py module
-    url which is sent to extract the data inside it
+    if not hasattr(_thread_local, "session"):
+        _thread_local.session = create_session()
 
-    RETURN:
-    Return the URL data in JSON format or None.
+    return _thread_local.session
+
+
+def get_json(session, url) -> dict:
+    """
+    Executes an HTTP GET request against a target URL and parses the JSON response.
+
+    Handles connection errors, timeouts, non-200 HTTP statuses, and invalid JSON payloads.
+    Returns parsed dictionary payload on success, or None on failure.
     """
 
     try:
-        # Get URL data
+
         timeout = TIMEOUT
 
-        response = session.get(url, timeout=timeout)
-
-        # If there are 404 errors or other non-retried errors,
-        # handle it cleanly
-        # if response.status_code != 200:
-        #     return None
+        response = session.get(
+            url,
+            timeout=timeout
+        )
 
         response.raise_for_status()
 
-        # Check content type before parsing
+        # Validate content type header prior to decoding JSON
         if "application/json" not in response.headers.get(
-            "Content-Type", ""
+            "Content-Type",
+            ""
         ):
-            logger.warning("Response is not JSON")
-            logger.warning(f"raw: {response.text}")
+            logger.warning(
+                "Response is not JSON | url=%s",
+                url
+            )
             return None
 
-        # Returning the response in JSON format
         return response.json()
 
-    # If internet connection dropped out completely
     except requests.exceptions.ConnectionError:
+
         logger.error(
-            "Connection failed - check URL and internet connection"
+            "Connection failed | url=%s",
+            url
         )
         return None
 
-    # If timeout failed completely
     except requests.exceptions.Timeout:
+
         logger.error(
-            f"Request timed out after {timeout} seconds"
+            "Request timed out after %s seconds | url=%s",
+            timeout,
+            url
         )
         return None
 
     except requests.exceptions.HTTPError as e:
+
         status = e.response.status_code
 
         logger.error(
-            f"HTTP Error {status}: {e}"
-        )
-
-        error_messages = {
-            400: "Bad request — check your data",
-            401: "Unauthorized — check your API key",
-            403: "Forbidden — you don't have access",
-            404: "Not found — check the URL",
-        }
-
-        print(
-            error_messages.get(
-                status,
-                f"Server error: {status}"
-            )
+            "HTTP Error %s | url=%s",
+            status,
+            url
         )
 
         return None
 
-    # If the server returned a 200 OK successfully
-    # but sent back HTML or text
-    # (like Wi-Fi login walls)
     except requests.exceptions.JSONDecodeError:
+
+        logger.error(
+            "Invalid JSON response | url=%s",
+            url
+        )
         return None
 
-    # If any further error
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
+
+        logger.error(
+            "Request failed | url=%s | error=%s",
+            url,
+            e
+        )
         return None
 
 
-def get_pokemon(session , logger)->list:
+def fetch_url(url):
     """
-    END POINT:
-    pokemon
+    Worker task for ThreadPoolExecutor. Fetches a single endpoint using
+    a thread-local HTTP session.
+    """
 
-    We are getting data from this endpoint
-    and returning the URLs of pokemon present in results.
+    session = get_worker_session()
 
-    PARAMETERS:
-    Takes the session object which is created
-    for this entire data extraction.
+    data = get_json(
+        session,
+        url
+    )
 
-    RETURNS:
-    Data in list format containing all the pokemon URLs.
+    return url, data
 
-    Implemented pagination here.
-    The URL provides pagination using offset and limit
-    mechanism in the next and previous fields.
+
+def extract_resources(
+    urls,
+    logger,
+    resource_name,
+    max_workers=10
+):
+    """
+    Executes concurrent HTTP GET requests across a collection of URLs using ThreadPoolExecutor.
+
+    Args:
+        urls (list[str]): List of target endpoint URLs.
+        logger (Logger): Active logging instance.
+        resource_name (str): Entity name for log contextualization.
+        max_workers (int): Maximum thread pool concurrency limit.
+
+    Returns:
+        tuple[list[dict], list[str]]: Extracted records and failed endpoint URLs.
+    """
+
+    data_list = []
+    failed_urls = []
+
+    total = len(urls)
+
+    if total == 0:
+        return data_list, failed_urls
+
+    logger.info(
+        "%s extraction started | total=%s | workers=%s",
+        resource_name,
+        total,
+        max_workers
+    )
+
+    with ThreadPoolExecutor(
+        max_workers=max_workers
+    ) as executor:
+
+        # executor.map preserves deterministic output ordering
+        results = executor.map(
+            fetch_url,
+            urls
+        )
+
+        for index, (url, data) in enumerate(
+            results,
+            start=1
+        ):
+
+            if data is None:
+
+                failed_urls.append(url)
+
+                logger.error(
+                    "%s extraction failed | progress=%s/%s | url=%s",
+                    resource_name,
+                    index,
+                    total,
+                    url
+                )
+
+                continue
+
+            data_list.append(data)
+
+            # Emit log checkpoints every 100 records or at batch completion
+            if (
+                index % 100 == 0
+                or index == total
+            ):
+                logger.info(
+                    "%s extraction progress | "
+                    "processed=%s/%s | success=%s | failed=%s",
+                    resource_name,
+                    index,
+                    total,
+                    len(data_list),
+                    len(failed_urls)
+                )
+
+    logger.info(
+        "%s extraction completed | success=%s | failed=%s",
+        resource_name,
+        len(data_list),
+        len(failed_urls)
+    )
+
+    return data_list, failed_urls
+
+
+def get_pokemon(session, logger) -> list:
+    """
+    Traverses API pagination pages sequentially to discover all Pokemon resource URLs.
     """
 
     url = BASE_URL
 
-    # Empty list for appending the required data
-    pokemon_data = []
-    failed_pages=[]
-    # Loop until the next URL is present
+    pokemon_urls = []
+    failed_pages = []
+
     while url:
 
-        # Call the get_json function,
-        # which gives us the data of the URL in JSON format
-        data = get_json(session, url)
+        data = get_json(
+            session,
+            url
+        )
 
         if data is None:
-            logger.error("failed to extract data")
-            failed_pages.append(url)
-        else:
 
-            # Get the results field inside the API information
-            results = data.get("results", [])
-
-            # Append the URLs of the pokemon present in the results
-            # if the URL is not None
-            pokemon_data.extend(
-                items["url"]
-                for items in results
-                if items.get("url")
+            logger.error(
+                "Failed to extract Pokemon page | url=%s",
+                url
             )
 
-        # Getting the next page URL.
-        # If it is not present, it returns None.
+            failed_pages.append(url)
+
+            break
+
+        results = data.get(
+            "results",
+            []
+        )
+
+        pokemon_urls.extend(
+            item["url"]
+            for item in results
+            if item.get("url")
+        )
+
         url = data.get("next")
 
-    # Return the URLs of the pokemon
-    return pokemon_data , failed_pages
+    logger.info(
+        "Pokemon URL discovery completed | urls=%s | failed_pages=%s",
+        len(pokemon_urls),
+        len(failed_pages)
+    )
 
-def extract_pokemon(session , urls , logger)->list:
+    return pokemon_urls, failed_pages
+
+
+def extract_pokemon(
+    session,
+    urls,
+    logger
+) -> list:
     """
-    Extract individual pokemon records
-    failed records doesnt stop the pipeline and gets saved a side
+    Concurrently extracts detailed Pokemon entities from provided endpoint URLs.
     """
-    pokemon_data=[]
-    failed_urls=[]
 
-    total=len(urls)
-
-
-    #looping around an enumerate with urls
-    for index,url in enumerate(urls, start=1):
-        data=get_json(session , url )
-
-        #if there is an error attacked the api then we get None
-        if data is None:
-            failed_urls.append(url)
-            logger.error("pokemon extraction failed | progress= %s / %s | url=%s" , index , total , url)
-            continue
-
-        #if we got data successfully
-        pokemon_data.append(data)
-        logger.info("pokemon extraction completed | success=%s failed=%s" , len(pokemon_data) , len(failed_urls))
-
-    return pokemon_data , failed_urls
+    return extract_resources(
+        urls,
+        logger,
+        resource_name="Pokemon",
+        max_workers=10
+    )
 
 
-def extract_species(session , urls , logger):
-
+def extract_species(
+    session,
+    urls,
+    logger
+):
     """
-    extract the species data from the species url 
+    Concurrently extracts detailed species entities from provided endpoint URLs.
     """
-    #save the species data
-    species_data=[]
-    #save the failed data
-    failed_species=[]
-    total=len(urls)
 
-    #looping around an enumerate with urls
-    for index,url in enumerate(urls, start=1):
-        data=get_json(session , url  )
-
-        #if there is an error occurred attacked the api then we get None
-        if data is None:
-            failed_species.append(url)
-            logger.error("pokemon species extraction failed | progress=%s / %s | url = %s " , index , total , url)
-            continue
-
-        #if we get successfull data 
-        species_data.append(data)
-        logger.info("pokemon species extraction completed | success=%s | failed=%s ", len(species_data) , len(failed_species))
-
-        
-    return species_data, failed_species
+    return extract_resources(
+        urls,
+        logger,
+        resource_name="Species",
+        max_workers=10
+    )
 
 
 def get_move(pokemon_data):
     """
-    get all move urls
+    Parses extracted Pokemon payloads to collect and deduplicate target move URLs.
     """
 
-    #unique set of moves from the pokemons
-    move_urls=set()
+    move_urls = set()
 
-    #pokemon -> moves-> move -> url
     for pokemon in pokemon_data:
-        for item in pokemon.get("moves") or []:
-            move_info=item.get("move") or {}
-            move_url=move_info.get("url")
 
-            #add only if the url is present
+        for item in pokemon.get("moves") or []:
+
+            move_info = item.get(
+                "move"
+            ) or {}
+
+            move_url = move_info.get(
+                "url"
+            )
+
             if move_url:
-                move_urls.add(move_url)
+                move_urls.add(
+                    move_url
+                )
+
     return sorted(move_urls)
 
 
-
-def extract_moves(session , urls , logger):
+def extract_moves(
+    session,
+    urls,
+    logger
+):
     """
-    extract move details from the move urls
+    Concurrently extracts move entities from provided endpoint URLs.
     """
-    move_data=[]
-    failed_urls=[]
-    total=len(urls)
 
-    #looping in move urls and getting its data
-    for index,url in enumerate(urls , start=1):
-        data=get_json(session , url )
-
-        #move url data fetching failed
-        if data is None:
-            failed_urls.append(url)
-            logger.error("pokemon move extraction failed | progress=%s /%s | url=%s " , index , total , url)
-            continue
-
-        #successfull retreival of pokemon move data
-        move_data.append(data)
-        logger.info("pokemon move successfully extracted | success=%s | failed =%s" , len(move_data) , len(failed_urls))
-
-    return move_data , failed_urls
+    return extract_resources(
+        urls,
+        logger,
+        resource_name="Moves",
+        max_workers=10
+    )

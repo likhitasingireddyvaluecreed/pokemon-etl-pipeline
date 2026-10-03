@@ -36,6 +36,7 @@ STAT_COLUMNS = [
 # Numeric columns for type enforcement during cleaning
 NUMERIC_COLUMNS = [
     "pokemon_id",
+    "species_id",
     "height_m",
     "weight_kg",
     "base_experience",
@@ -50,6 +51,7 @@ NUMERIC_COLUMNS = [
 # Categorical columns to apply default fallback values
 CATEGORICAL_COLUMNS = [
     "pokemon_name",
+    "form_name",
 ]
 
 # Default string replacement for missing categorical values
@@ -74,7 +76,10 @@ LOG_FILE="logs/pipeline.log"
 # Required columns for primary Pokémon DataFrame validation
 VALIDATION_REQUIRED_COLUMNS = [
     "pokemon_id",
+    "species_id",
     "pokemon_name",
+    "form_name",
+    "is_default_form",
     "height_m",
     "weight_kg",
     "base_experience",
@@ -91,11 +96,11 @@ VALIDATION_REQUIRED_COLUMNS = [
     "battle_style",
     "stat_specialization",
     "size_class",
-    "special_status",
 ]
 
 # Numeric columns to check for non-negative values
 VALIDATION_NUMERIC_COLUMNS = [
+    "species_id",
     "height_m",
     "weight_kg",
     "base_experience",
@@ -123,7 +128,10 @@ RESOURCE_MOVES = "moves"
 # Validation columns for primary Pokémon DataFrame
 POKEMON_REQUIRED_COLS = [
     "pokemon_id",
+    "species_id",
     "pokemon_name",
+    "form_name",
+    "is_default_form",
     "height_m",
     "weight_kg",
     "base_experience",
@@ -131,6 +139,7 @@ POKEMON_REQUIRED_COLS = [
 
 POKEMON_NON_NEGATIVE_COLS = [
     "pokemon_id",
+    "species_id",
     "height_m",
     "weight_kg",
     "base_experience",
@@ -144,7 +153,29 @@ POKEMON_NON_NEGATIVE_COLS = [
 
 # Validation columns for Species DataFrame
 SPECIES_REQUIRED_COLS = [
-    "pokemon_id",
+    "species_id",
     "pokemon_category",
     "generation",
+    "color",
+    "shape",
+    "habitat",
+    "capture_rate",
+    "base_happiness",
+    "growth_rate",
+    "gender_rate",
+    "hatch_counter",
+    "egg_group_1",
+    "egg_group_2",
+    "is_baby",
+    "is_legendary",
+    "is_mythical",
+    "special_status",
+]
+
+# Numeric columns to check for non-negative values in Species DataFrame
+SPECIES_NON_NEGATIVE_COLS = [
+    "species_id",
+    "capture_rate",
+    "base_happiness",
+    "hatch_counter",
 ]
